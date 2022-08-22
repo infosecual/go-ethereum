@@ -45,6 +45,7 @@ var (
 	errTooManyUncles    = errors.New("too many uncles")
 	errInvalidNonce     = errors.New("invalid nonce")
 	errInvalidUncleHash = errors.New("invalid uncle hash")
+	errInvalidTimestamp = errors.New("invalid timestamp")
 )
 
 // Beacon is a consensus engine that combines the eth1 consensus and proof-of-stake
@@ -113,8 +114,16 @@ func (beacon *Beacon) VerifyHeaders(chain consensus.ChainHeaderReader, headers [
 		}
 	}
 
-	// All the headers have passed the transition point, use new rules.
 	if len(preHeaders) == 0 {
+		// All the headers are pos headers. Verify that the parent block reached total terminal difficulty.
+		if reached, _ := IsTTDReached(chain, headers[0].ParentHash, headers[0].Number.Uint64()-1); !reached {
+			// TTD not reached for the first block, mark subsequent with invalid terminal block
+			results := make(chan error, len(headers))
+			for i := 0; i < len(headers); i++ {
+				results <- consensus.ErrInvalidTerminalBlock
+			}
+			return make(chan struct{}), results
+		}
 		return beacon.verifyHeaders(chain, headers, nil)
 	}
 
@@ -166,7 +175,7 @@ func (beacon *Beacon) VerifyHeaders(chain consensus.ChainHeaderReader, headers [
 	return abort, results
 }
 
-// verifyTerminalPoWBlock verifies that the preHeaders confirm to the specification
+// verifyTerminalPoWBlock verifies that the preHeaders conform to the specification
 // wrt. their total difficulty.
 // It expects:
 // - preHeaders to be at least 1 element
@@ -213,7 +222,7 @@ func (beacon *Beacon) VerifyUncles(chain consensus.ChainReader, block *types.Blo
 // 	   - nonce is expected to be 0
 //     - unclehash is expected to be Hash(emptyHeader)
 //     to be the desired constants
-// (b) the timestamp is not verified anymore
+// (b) we don't verify if a block is in the future anymore
 // (c) the extradata is limited to 32 bytes
 func (beacon *Beacon) verifyHeader(chain consensus.ChainHeaderReader, header, parent *types.Header) error {
 	// Ensure that the header's extra-data section is of a reasonable size
@@ -226,6 +235,10 @@ func (beacon *Beacon) verifyHeader(chain consensus.ChainHeaderReader, header, pa
 	}
 	if header.UncleHash != types.EmptyUncleHash {
 		return errInvalidUncleHash
+	}
+	// Verify the timestamp
+	if header.Time <= parent.Time {
+		return errInvalidTimestamp
 	}
 	// Verify the block's difficulty to ensure it's the default constant
 	if beaconDifficulty.Cmp(header.Difficulty) != 0 {
