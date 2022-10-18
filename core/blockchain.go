@@ -2091,6 +2091,9 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		// len(newChain) == 0 && len(oldChain) > 0
 		// rewind the canonical chain to a lower point.
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "oldblocks", len(oldChain), "newnum", newBlock.Number(), "newhash", newBlock.Hash(), "newblocks", len(newChain))
+		log.Error(oldBlock.Number(), oldBlock.Time(), oldBlock.MixDigest(), oldBlock.Bloom(), oldBlock.Coinbase(), oldBlock.Root(), oldBlock.ParentHash(), oldBlock.TxHash(), oldBlock.UncleHash(), oldBlock.ReceiptHash())
+		log.Error(newBlock.Number(), newBlock.Time(), newBlock.MixDigest(), newBlock.Bloom(), newBlock.Coinbase(), newBlock.Root(), newBlock.ParentHash(), newBlock.TxHash(), newBlock.UncleHash(), newBlock.ReceiptHash())
+
 		panic("hit condition, give me a stack dump!")
 	}
 	// Insert the new chain(except the head block(reverse order)),
