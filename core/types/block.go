@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -272,8 +273,21 @@ func (b *Block) EncodeRLP(w io.Writer) error {
 	})
 }
 
-// TODO: copies
+// for debugging blocks
+func (b *Block) PrettyPrint(pos string) {
+	log.Debug(pos, "num", b.Number().String(),
+		"Time", b.Time(),
+		"MixDigest", b.MixDigest(),
+		"Bloom", b.Bloom(),
+		"Coinbase", b.Coinbase(),
+		"Root", b.Root(),
+		"ParentHash", b.ParentHash(),
+		"TxHash", b.TxHash(),
+		"UncleHash", b.UncleHash(),
+		"ReceiptHash", b.ReceiptHash())
+}
 
+// TODO: copies
 func (b *Block) Uncles() []*Header          { return b.uncles }
 func (b *Block) Transactions() Transactions { return b.transactions }
 

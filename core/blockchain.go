@@ -1999,8 +1999,8 @@ func mergeLogs(logs [][]*types.Log, reverse bool) []*types.Log {
 // Note the new head block won't be processed here, callers need to handle it
 // externally.
 func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
-	log.Error("debug", "num", oldBlock.Number().String(), "time", oldBlock.Time(), "mixDigest", oldBlock.MixDigest(), "bloom", oldBlock.Bloom(), "coinbase", oldBlock.Coinbase(), "root", oldBlock.Root(), "parenthash", oldBlock.ParentHash(), "txhash", oldBlock.TxHash(), "unclehash", oldBlock.UncleHash(), "recpeithash", oldBlock.ReceiptHash())
-	log.Error("debug", "num", newBlock.Number().String(), "time", newBlock.Time(), "mixDigest", newBlock.MixDigest(), "bloom", newBlock.Bloom(), "coinbase", newBlock.Coinbase(), "root", newBlock.Root(), "parenthash", newBlock.ParentHash(), "txhash", newBlock.TxHash(), "unclehash", newBlock.UncleHash(), "recpeithash", newBlock.ReceiptHash())
+	oldBlock.PrettyPrint("DEBUG2")
+	newBlock.PrettyPrint("DEBUG3")
 	var (
 		newChain    types.Blocks
 		oldChain    types.Blocks
@@ -2093,8 +2093,8 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		// len(newChain) == 0 && len(oldChain) > 0
 		// rewind the canonical chain to a lower point.
 		log.Error("Impossible reorg, please file an issue", "oldnum", oldBlock.Number(), "oldhash", oldBlock.Hash(), "oldblocks", len(oldChain), "newnum", newBlock.Number(), "newhash", newBlock.Hash(), "newblocks", len(newChain))
-		log.Error("debug", "num", oldBlock.Number().String(), "time", oldBlock.Time(), "mixDigest", oldBlock.MixDigest(), "bloom", oldBlock.Bloom(), "coinbase", oldBlock.Coinbase(), "root", oldBlock.Root(), "parenthash", oldBlock.ParentHash(), "txhash", oldBlock.TxHash(), "unclehash", oldBlock.UncleHash(), "recpeithash", oldBlock.ReceiptHash())
-		log.Error("debug", "num", newBlock.Number().String(), "time", newBlock.Time(), "mixDigest", newBlock.MixDigest(), "bloom", newBlock.Bloom(), "coinbase", newBlock.Coinbase(), "root", newBlock.Root(), "parenthash", newBlock.ParentHash(), "txhash", newBlock.TxHash(), "unclehash", newBlock.UncleHash(), "recpeithash", newBlock.ReceiptHash())
+		oldBlock.PrettyPrint("DEBUG4")
+		newBlock.PrettyPrint("DEBUG5")
 
 		panic("hit condition, give me a stack dump!")
 	}
