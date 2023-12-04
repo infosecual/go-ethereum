@@ -34,6 +34,11 @@ import (
 
 const basefeeWiggleMultiplier = 2
 
+var (
+	errNoEventSignature       = errors.New("no event signature")
+	errEventSignatureMismatch = errors.New("event signature mismatch")
+)
+
 // SignerFn is a signer function callback when a contract requires a method to
 // sign the transaction before submission.
 type SignerFn func(common.Address, *types.Transaction) (*types.Transaction, error)
@@ -43,6 +48,7 @@ type CallOpts struct {
 	Pending     bool            // Whether to operate on the pending state or the last known one
 	From        common.Address  // Optional the sender address, otherwise the first account is used
 	BlockNumber *big.Int        // Optional the block number on which the call should be performed
+	BlockHash   common.Hash     // Optional the block hash on which the call should be performed
 	Context     context.Context // Network context to support cancellation and timeouts (nil = no timeout)
 }
 
@@ -179,6 +185,23 @@ func (c *BoundContract) Call(opts *CallOpts, results *[]interface{}, method stri
 		if len(output) == 0 {
 			// Make sure we have a contract to operate on, and bail out otherwise.
 			if code, err = pb.PendingCodeAt(ctx, c.address); err != nil {
+				return err
+			} else if len(code) == 0 {
+				return ErrNoCode
+			}
+		}
+	} else if opts.BlockHash != (common.Hash{}) {
+		bh, ok := c.caller.(BlockHashContractCaller)
+		if !ok {
+			return ErrNoBlockHashState
+		}
+		output, err = bh.CallContractAtHash(ctx, msg, opts.BlockHash)
+		if err != nil {
+			return err
+		}
+		if len(output) == 0 {
+			// Make sure we have a contract to operate on, and bail out otherwise.
+			if code, err = bh.CodeAtHash(ctx, c.address, opts.BlockHash); err != nil {
 				return err
 			} else if len(code) == 0 {
 				return ErrNoCode
@@ -373,6 +396,8 @@ func (c *BoundContract) transact(opts *TransactOpts, contract *common.Address, i
 	)
 	if opts.GasPrice != nil {
 		rawTx, err = c.createLegacyTx(opts, contract, input)
+	} else if opts.GasFeeCap != nil && opts.GasTipCap != nil {
+		rawTx, err = c.createDynamicTx(opts, contract, input, nil)
 	} else {
 		// Only query for basefee if gasPrice not specified
 		if head, errHead := c.transactor.HeaderByNumber(ensureContext(opts.Context), nil); errHead != nil {
@@ -486,8 +511,12 @@ func (c *BoundContract) WatchLogs(opts *WatchOpts, name string, query ...[]inter
 
 // UnpackLog unpacks a retrieved log into the provided output structure.
 func (c *BoundContract) UnpackLog(out interface{}, event string, log types.Log) error {
+	// Anonymous events are not supported.
+	if len(log.Topics) == 0 {
+		return errNoEventSignature
+	}
 	if log.Topics[0] != c.abi.Events[event].ID {
-		return fmt.Errorf("event signature mismatch")
+		return errEventSignatureMismatch
 	}
 	if len(log.Data) > 0 {
 		if err := c.abi.UnpackIntoInterface(out, event, log.Data); err != nil {
@@ -505,8 +534,12 @@ func (c *BoundContract) UnpackLog(out interface{}, event string, log types.Log) 
 
 // UnpackLogIntoMap unpacks a retrieved log into the provided map.
 func (c *BoundContract) UnpackLogIntoMap(out map[string]interface{}, event string, log types.Log) error {
+	// Anonymous events are not supported.
+	if len(log.Topics) == 0 {
+		return errNoEventSignature
+	}
 	if log.Topics[0] != c.abi.Events[event].ID {
-		return fmt.Errorf("event signature mismatch")
+		return errEventSignatureMismatch
 	}
 	if len(log.Data) > 0 {
 		if err := c.abi.UnpackIntoMap(out, event, log.Data); err != nil {

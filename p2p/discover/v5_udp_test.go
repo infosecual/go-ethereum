@@ -24,7 +24,6 @@ import (
 	"math/rand"
 	"net"
 	"reflect"
-	"sort"
 	"testing"
 	"time"
 
@@ -35,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 )
 
 // Real sockets, real crypto: this test checks end-to-end connectivity for UDPv5.
@@ -61,8 +61,8 @@ func TestUDPv5_lookupE2E(t *testing.T) {
 	for i := range nodes {
 		expectedResult[i] = nodes[i].Self()
 	}
-	sort.Slice(expectedResult, func(i, j int) bool {
-		return enode.DistCmp(target.ID(), expectedResult[i].ID(), expectedResult[j].ID()) < 0
+	slices.SortFunc(expectedResult, func(a, b *enode.Node) int {
+		return enode.DistCmp(target.ID(), a.ID(), b.ID())
 	})
 
 	// Do the lookup.
@@ -79,12 +79,7 @@ func startLocalhostV5(t *testing.T, cfg Config) *UDPv5 {
 
 	// Prefix logs with node ID.
 	lprefix := fmt.Sprintf("(%s)", ln.ID().TerminalString())
-	lfmt := log.TerminalFormat(false)
-	cfg.Log = testlog.Logger(t, log.LvlTrace)
-	cfg.Log.SetHandler(log.FuncHandler(func(r *log.Record) error {
-		t.Logf("%s %s", lprefix, lfmt.Format(r))
-		return nil
-	}))
+	cfg.Log = testlog.Logger(t, log.LevelTrace).With("node-id", lprefix)
 
 	// Listen.
 	socket, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IP{127, 0, 0, 1}})
@@ -161,7 +156,7 @@ func TestUDPv5_findnodeHandling(t *testing.T) {
 	defer test.close()
 
 	// Create test nodes and insert them into the table.
-	nodes253 := nodesAtDistance(test.table.self().ID(), 253, 10)
+	nodes253 := nodesAtDistance(test.table.self().ID(), 253, 16)
 	nodes249 := nodesAtDistance(test.table.self().ID(), 249, 4)
 	nodes248 := nodesAtDistance(test.table.self().ID(), 248, 10)
 	fillTable(test.table, wrapNodes(nodes253))
@@ -186,7 +181,7 @@ func TestUDPv5_findnodeHandling(t *testing.T) {
 
 	// This request gets all the distance-253 nodes.
 	test.packetIn(&v5wire.Findnode{ReqID: []byte{4}, Distances: []uint{253}})
-	test.expectNodes([]byte{4}, 4, nodes253)
+	test.expectNodes([]byte{4}, 2, nodes253)
 
 	// This request gets all the distance-249 nodes and some more at 248 because
 	// the bucket at 249 is not full.
@@ -194,11 +189,11 @@ func TestUDPv5_findnodeHandling(t *testing.T) {
 	var nodes []*enode.Node
 	nodes = append(nodes, nodes249...)
 	nodes = append(nodes, nodes248[:10]...)
-	test.expectNodes([]byte{5}, 5, nodes)
+	test.expectNodes([]byte{5}, 1, nodes)
 }
 
 func (test *udpV5Test) expectNodes(wantReqID []byte, wantTotal uint8, wantNodes []*enode.Node) {
-	nodeSet := make(map[enode.ID]*enr.Record)
+	nodeSet := make(map[enode.ID]*enr.Record, len(wantNodes))
 	for _, n := range wantNodes {
 		nodeSet[n.ID()] = n.Record()
 	}
@@ -208,11 +203,8 @@ func (test *udpV5Test) expectNodes(wantReqID []byte, wantTotal uint8, wantNodes 
 			if !bytes.Equal(p.ReqID, wantReqID) {
 				test.t.Fatalf("wrong request ID %v in response, want %v", p.ReqID, wantReqID)
 			}
-			if len(p.Nodes) > 3 {
-				test.t.Fatalf("too many nodes in response")
-			}
-			if p.Total != wantTotal {
-				test.t.Fatalf("wrong total response count %d, want %d", p.Total, wantTotal)
+			if p.RespCount != wantTotal {
+				test.t.Fatalf("wrong total response count %d, want %d", p.RespCount, wantTotal)
 			}
 			for _, record := range p.Nodes {
 				n, _ := enode.New(enode.ValidSchemesForTesting, record)
@@ -304,14 +296,14 @@ func TestUDPv5_findnodeCall(t *testing.T) {
 			t.Fatalf("wrong distances in request: %v", p.Distances)
 		}
 		test.packetIn(&v5wire.Nodes{
-			ReqID: p.ReqID,
-			Total: 2,
-			Nodes: nodesToRecords(nodes[:4]),
+			ReqID:     p.ReqID,
+			RespCount: 2,
+			Nodes:     nodesToRecords(nodes[:4]),
 		})
 		test.packetIn(&v5wire.Nodes{
-			ReqID: p.ReqID,
-			Total: 2,
-			Nodes: nodesToRecords(nodes[4:]),
+			ReqID:     p.ReqID,
+			RespCount: 2,
+			Nodes:     nodesToRecords(nodes[4:]),
 		})
 	})
 
@@ -412,16 +404,16 @@ func TestUDPv5_callTimeoutReset(t *testing.T) {
 	test.waitPacketOut(func(p *v5wire.Findnode, addr *net.UDPAddr, _ v5wire.Nonce) {
 		time.Sleep(respTimeout - 50*time.Millisecond)
 		test.packetIn(&v5wire.Nodes{
-			ReqID: p.ReqID,
-			Total: 2,
-			Nodes: nodesToRecords(nodes[:4]),
+			ReqID:     p.ReqID,
+			RespCount: 2,
+			Nodes:     nodesToRecords(nodes[:4]),
 		})
 
 		time.Sleep(respTimeout - 50*time.Millisecond)
 		test.packetIn(&v5wire.Nodes{
-			ReqID: p.ReqID,
-			Total: 2,
-			Nodes: nodesToRecords(nodes[4:]),
+			ReqID:     p.ReqID,
+			RespCount: 2,
+			Nodes:     nodesToRecords(nodes[4:]),
 		})
 	})
 	if err := <-done; err != nil {
@@ -513,6 +505,27 @@ func TestUDPv5_talkRequest(t *testing.T) {
 		test.packetInFrom(test.remotekey, test.remoteaddr, &v5wire.TalkResponse{
 			ReqID:   p.ReqID,
 			Message: []byte("test response"),
+		})
+	})
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+
+	// Also check requesting without ENR.
+	go func() {
+		_, err := test.udp.TalkRequestToID(remote.ID(), test.remoteaddr, "test", []byte("test request 2"))
+		done <- err
+	}()
+	test.waitPacketOut(func(p *v5wire.TalkRequest, addr *net.UDPAddr, _ v5wire.Nonce) {
+		if p.Protocol != "test" {
+			t.Errorf("wrong protocol ID in talk request: %q", p.Protocol)
+		}
+		if string(p.Message) != "test request 2" {
+			t.Errorf("wrong message talk request: %q", p.Message)
+		}
+		test.packetInFrom(test.remotekey, test.remoteaddr, &v5wire.TalkResponse{
+			ReqID:   p.ReqID,
+			Message: []byte("test response 2"),
 		})
 	})
 	if err := <-done; err != nil {
