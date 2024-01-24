@@ -47,7 +47,7 @@ type Options struct {
 }
 
 // Estimate returns the lowest possible gas limit that allows the transaction to
-// run successfully with the provided context optons. It returns an error if the
+// run successfully with the provided context options. It returns an error if the
 // transaction would always revert, or if there are unexpected failures.
 func Estimate(ctx context.Context, call *core.Message, opts *Options, gasCap uint64) (uint64, []byte, error) {
 	// Binary search the gas limit, as it may need to be higher than the amount used
@@ -71,9 +71,9 @@ func Estimate(ctx context.Context, call *core.Message, opts *Options, gasCap uin
 	}
 	// Recap the highest gas limit with account's available balance.
 	if feeCap.BitLen() != 0 {
-		balance := opts.State.GetBalance(call.From)
+		balance := opts.State.GetBalance(call.From).ToBig()
 
-		available := new(big.Int).Set(balance)
+		available := balance
 		if call.Value != nil {
 			if call.Value.Cmp(available) >= 0 {
 				return 0, nil, core.ErrInsufficientFundsForTransfer
