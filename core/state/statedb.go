@@ -456,12 +456,14 @@ func (s *StateDB) SelfDestruct(addr common.Address) {
 	stateObject.data.Balance = new(uint256.Int)
 }
 
-func (s *StateDB) Selfdestruct6780(addr common.Address) {
+func (s *StateDB) SelfDestruct6780(addr common.Address) {
 	stateObject := s.getStateObject(addr)
+	// is this redundant
 	if stateObject == nil {
 		return
 	}
 
+	// this is used to track if the account was created in the current transaction
 	if stateObject.created {
 		s.SelfDestruct(addr)
 	}

@@ -2898,6 +2898,7 @@ func TestDeleteCreateRevert(t *testing.T) {
 	testDeleteCreateRevert(t, rawdb.PathScheme)
 }
 
+// david: add a 6780 test
 func testDeleteCreateRevert(t *testing.T, scheme string) {
 	var (
 		aa     = common.HexToAddress("0x000000000000000000000000000000000000aaaa")
@@ -2973,6 +2974,7 @@ func TestDeleteRecreateSlots(t *testing.T) {
 	testDeleteRecreateSlots(t, rawdb.PathScheme)
 }
 
+// david: add a 6780 test
 func testDeleteRecreateSlots(t *testing.T, scheme string) {
 	var (
 		engine = ethash.NewFaker()
@@ -3101,6 +3103,7 @@ func TestDeleteRecreateAccount(t *testing.T) {
 	testDeleteRecreateAccount(t, rawdb.PathScheme)
 }
 
+// david: add a 6780 test
 func testDeleteRecreateAccount(t *testing.T, scheme string) {
 	var (
 		engine = ethash.NewFaker()
@@ -3179,6 +3182,7 @@ func TestDeleteRecreateSlotsAcrossManyBlocks(t *testing.T) {
 	testDeleteRecreateSlotsAcrossManyBlocks(t, rawdb.PathScheme)
 }
 
+// david: add a 6780 test
 func testDeleteRecreateSlotsAcrossManyBlocks(t *testing.T, scheme string) {
 	var (
 		engine = ethash.NewFaker()

@@ -103,6 +103,12 @@ func newStateTestAction(addr common.Address, r *rand.Rand, index int) testAction
 				s.SelfDestruct(addr)
 			},
 		},
+		{
+			name: "SelfDestruct6780",
+			fn: func(a testAction, s *StateDB) {
+				s.SelfDestruct6780(addr)
+			},
+		},
 	}
 	var nonRandom = index != -1
 	if index == -1 {

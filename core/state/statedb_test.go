@@ -316,6 +316,12 @@ func newTestAction(addr common.Address, r *rand.Rand) testAction {
 			},
 		},
 		{
+			name: "SelfDestruct6780",
+			fn: func(a testAction, s *StateDB) {
+				s.SelfDestruct6780(addr)
+			},
+		},
+		{
 			name: "AddRefund",
 			fn: func(a testAction, s *StateDB) {
 				s.AddRefund(uint64(a.args[0]))
@@ -786,6 +792,57 @@ func TestDeleteCreateRevert(t *testing.T) {
 		t.Fatalf("self-destructed contract came alive")
 	}
 }
+
+// david: fix this test. is it needed?
+func TestDeleteCreateRevert6780(t *testing.T) {
+	// Create an initial state with a single contract
+	state, _ := New(types.EmptyRootHash, NewDatabase(rawdb.NewMemoryDatabase()), nil)
+
+	addr := common.BytesToAddress([]byte("so"))
+	state.SetBalance(addr, uint256.NewInt(1))
+
+	root, _ := state.Commit(0, false)
+	state, _ = New(root, state.db, state.snaps)
+
+	// Simulate self-destructing in one transaction, then create-reverting in another
+	state.SelfDestruct6780(addr)
+	state.Finalise(true)
+
+	id := state.Snapshot()
+	state.SetBalance(addr, uint256.NewInt(2))
+	state.RevertToSnapshot(id)
+
+	// Commit the entire state and make sure we don't crash and have the correct state
+	root, _ = state.Commit(0, true)
+	state, _ = New(root, state.db, state.snaps)
+
+	if state.getStateObject(addr) == nil {
+		t.Fatalf("selfdestructed contract was deleted")
+	}
+}
+
+// david: add tests for the changes in selfdestruct and selfdestruct7680 behavior
+//
+// New in 6780:
+//
+// If executed in a transaction that is not the same as the contract calling SELFDESTRUCT was created:
+// 1. The current execution frame halts.
+// 2. SELFDESTRUCT does not delete any data (including storage keys, code, or the account itself)
+// 3. SELFDESTRUCT transfers the entire account balance to the target.
+// 4. Note that if the target is the same as the contract calling SELFDESTRUCT there is no net
+//    change in balances. Unlike the prior specification, Ether will not be burnt in this case.
+//
+// If executed in the same transaction as the contract was created:
+// 1. SELFDESTRUCT continues to behave as it did prior to this EIP, this includes the following actions
+//    a. The current execution frame halts.
+//    b. SELFDESTRUCT deletes data as previously specified.
+//    c. SELFDESTRUCT transfers the entire account balance to the target
+//    d. The account balance of the contact calling SELFDESTRUCT is set to 0.
+// 2. Note that if the target is the same as the contract calling SELFDESTRUCT that Ether will be burnt.
+//
+// In all cases:
+// 1. no refund is given since EIP-3529.
+// 2. the rules of EIP-2929 regarding SELFDESTRUCT remain unchanged.
 
 // TestMissingTrieNodes tests that if the StateDB fails to load parts of the trie,
 // the Commit operation fails with an error
