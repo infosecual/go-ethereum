@@ -860,12 +860,16 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 		}
 		obj := s.stateObjects[addr] // closure for the task runner below
 		workers.Go(func() error {
-			obj.updateRoot()
+			if s.db.TrieDB().IsVerkle() {
+				obj.updateTrie()
+			} else {
+				obj.updateRoot()
 
-			// If witness building is enabled and the state object has a trie,
-			// gather the witnesses for its specific storage trie
-			if s.witness != nil && obj.trie != nil {
-				s.witness.AddState(obj.trie.Witness())
+				// If witness building is enabled and the state object has a trie,
+				// gather the witnesses for its specific storage trie
+				if s.witness != nil && obj.trie != nil {
+					s.witness.AddState(obj.trie.Witness())
+				}
 			}
 			return nil
 		})
@@ -907,9 +911,12 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	// Now we're about to start to write changes to the trie. The trie is so far
 	// _untouched_. We can check with the prefetcher, if it can give us a trie
 	// which has the same root, but also has some content loaded into it.
+	//
+	// Don't check prefetcher if verkle trie has been used. In the context of verkle,
+	// only a single trie is used for state hashing. Replacing a non-nil verkle tree
+	// here could result in losing uncommitted changes from storage.
 	start = time.Now()
-
-	if s.prefetcher != nil {
+	if s.prefetcher != nil && (s.trie == nil || !s.trie.IsVerkle()) {
 		if trie := s.prefetcher.trie(common.Hash{}, s.originalRoot); trie == nil {
 			log.Error("Failed to retrieve account pre-fetcher trie")
 		} else {
